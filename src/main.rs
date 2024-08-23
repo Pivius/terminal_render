@@ -1,16 +1,15 @@
 extern crate kernel32;
 extern crate winapi;
 
-use std::process::Command;
-use std::time::{Instant};
+use std::time::Instant;
 use windows_capture::{
     capture::GraphicsCaptureApiHandler,
-    encoder::ImageEncoder,
-    frame::{Frame, ImageFormat},
+    frame::Frame,
     graphics_capture_api::InternalCaptureControl,
     window::Window,
     settings::{ColorFormat, CursorCaptureSettings, DrawBorderSettings, Settings},
 };
+
 pub mod pixel;
 pub mod frame;
 pub mod processing;
@@ -28,7 +27,7 @@ impl GraphicsCaptureApiHandler for Capture {
     type Flags = Option<String>;
     type Error = Box<dyn std::error::Error + Send + Sync>;
 
-    fn new(message: Self::Flags) -> Result<Self, Self::Error> {
+    fn new(_message: Self::Flags) -> Result<Self, Self::Error> {
         let canvas = Canvas::new(ColorFormat::Rgba8);
 
         Ok(Self {
@@ -41,7 +40,7 @@ impl GraphicsCaptureApiHandler for Capture {
     fn on_frame_arrived(
         &mut self,
         frame: &mut Frame,
-        capture_control: InternalCaptureControl,
+        _capture_control: InternalCaptureControl,
     ) -> Result<(), Self::Error> {
         let mut data = frame.buffer()?;
         self.canvas.push_buffer(data.as_raw_buffer().to_vec(), frame.width(), frame.height());
@@ -55,7 +54,6 @@ impl GraphicsCaptureApiHandler for Capture {
             self.last_output = Instant::now();
         }
 
-
         Ok(())
     }
 
@@ -66,16 +64,9 @@ impl GraphicsCaptureApiHandler for Capture {
     }
 }
 
-
-fn open_gmod() {
-    let handle = Command::new("C:\\Program Files (x86)\\Steam\\steamapps\\common\\GarrysMod\\hl2.exe")
-        .arg("-console")
-        .spawn()
-        .expect("Failed to start Garry's Mod");
-}
-
 fn main() {
-    let window = Window::from_contains_name("Garry's Mod").expect("Failed to find Garry's Mod window");
+    let window_title = "";
+    let window = Window::from_contains_name(window_title).expect("Failed to find window");
     let settings = Settings::new(
         window,
         CursorCaptureSettings::Default,
