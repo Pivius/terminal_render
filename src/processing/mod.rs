@@ -1,11 +1,14 @@
 use crossterm::style::Color;
-use crate::{frame::{Size, Image}, pixel::{PxData, Vector2}, pixel, vector2};
+use crate::{frame::{Size, Image, FrameData}, pixel::{PxData, Vector2}, pixel, vector2};
+mod filter;
 pub enum Scaling {
     Nearest,
     Bilinear,
     //Bicubic,
     //Lanczos,
 }
+
+#[derive(Clone)]
 pub enum Kernel {
     Sobel,
     Prewitt
@@ -24,6 +27,8 @@ pub trait ImageProcess {
     fn seam_carve(&mut self, direction: bool, remove: bool) -> &mut Self;
     fn gradient_magnitude(&mut self, kernel: Kernel) -> &mut Self;
     fn mask_ontop(&mut self, other: &Image, color_mask: Color, threshold: u8) -> &mut Self;
+    fn get_ascii(&self, shades: String) -> String;
+    fn brightness(&mut self, value: i32) -> &mut Self;
 }
 
 pub struct Threshold {

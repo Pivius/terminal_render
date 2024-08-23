@@ -43,6 +43,7 @@ pub struct PxData {
     g: u8,
     b: u8,
     position: Vector2,
+    character: char
 }
 
 #[macro_export]
@@ -56,10 +57,10 @@ impl PxData {
     pub fn new(color: Color, position: Vector2) -> Self {
         match color {
             Color::Rgb{r, g, b} => {
-                Self {r, g, b, position}
+                Self {r, g, b, position, character: '█'}
             }
             _ => {
-                Self {r: 0, g: 0, b: 0, position}
+                Self {r: 0, g: 0, b: 0, position, character: '█'}
             }
         }
     }
@@ -106,6 +107,14 @@ impl PxData {
 
     pub fn set_position(&mut self, position: Vector2) {
         self.position = position;
+    }
+
+    pub fn get_character(&self) -> char {
+        self.character
+    }
+
+    pub fn set_character(&mut self, character: char) {
+        self.character = character;
     }
 
     pub fn set_color_raw(&mut self, r: u8, g: u8, b: u8) {

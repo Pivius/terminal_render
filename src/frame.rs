@@ -20,7 +20,7 @@ pub struct Image {
     multiplier: u8,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct FrameData {
     buffer_size: Size,
     raw_data: Vec<u8>,
@@ -99,6 +99,22 @@ impl Image {
         }
     }
 
+    pub fn black(size: Size) -> Self {
+        let mut pixel_data = Vec::new();
+
+        for y in 0..size.height {
+            for x in 0..size.width {
+                pixel_data.push(pixel!(0, 0, 0, x, y));
+            }
+        }
+
+        Self {
+            pixel_data,
+            size,
+            multiplier: 4,
+        }
+    }
+
     pub fn get_image_size(&self) -> Size {
         self.size
     }
@@ -170,16 +186,16 @@ impl ImageProcess for Image {
     }
 
     fn grayscale(&mut self, shades: u8) -> &mut Self {
-        match shades < 2 {
+        match shades >= 2 {
             true => {
                 let factor = 255 / (shades - 1) as u8;
 
                 for pixel in self.get_pixel_data_mut().iter_mut() {
                     let (r, g, b) = pixel.get_color_raw();
-                    let average = (r + g + b) / 3;
-                    let gray = (average as f64 / factor as f64).ceil() as u8 * factor;
+                    let average = (r as f64 + g as f64 + b as f64) / 3.0;
+                    let gray = (average / factor as f64).ceil() * factor as f64;
 
-                    pixel.set_color_raw(gray, gray, gray);
+                    pixel.set_color_raw(gray as u8, gray as u8, gray as u8);
                 }
             },
             false => {
@@ -328,6 +344,37 @@ impl ImageProcess for Image {
         }
 
         self.pixel_data = new_pixel_data;
+        self
+    }
+
+    fn get_ascii(&self, shades: String) -> String {
+        let mut ascii_image = String::new();
+        let shades = shades.chars().collect::<Vec<char>>();
+        let shades_len = shades.len() as f64;
+        let pixel_data = self.get_pixel_data();
+
+        for pixel in pixel_data.iter() {
+            let (r, g, b) = pixel.get_color_raw();
+            let average = ((r as f64 + g as f64 + b as f64) / 3.0) as f64;
+            let shade_index = (average / 255.0 * shades_len).floor() as usize;
+            let shade = shades[shade_index.min(shades_len as usize - 1)];
+
+            ascii_image.push(shade);
+        }
+
+        ascii_image
+    }
+
+    fn brightness(&mut self, value: i32) -> &mut Self {
+        for pixel in self.get_pixel_data_mut().iter_mut() {
+            let (r, g, b) = pixel.get_color_raw();
+            let r = (r as i32 + value).max(0).min(255) as u8;
+            let g = (g as i32 + value).max(0).min(255) as u8;
+            let b = (b as i32 + value).max(0).min(255) as u8;
+
+            pixel.set_color_raw(r, g, b);
+        }
+
         self
     }
 }

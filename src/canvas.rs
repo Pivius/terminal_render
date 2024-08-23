@@ -4,22 +4,26 @@ extern crate winapi;
 use std::os::windows::io::FromRawHandle;
 use std::fs::File;
 use std::mem;
-use crossterm::style::Color;
-use winapi::um::winnt::HANDLE;
-use winapi::um::wincon::{SetConsoleOutputCP, GetConsoleScreenBufferInfo, COORD};
+use std::sync::{Arc, Mutex};
+use std::{time::Duration, thread, time::Instant};
+use crossterm::style::{self, Color};
+use winapi::um::wincon::SetConsoleOutputCP;
+use crossterm::event::{Event, poll, read};
 use winapi::um::winnls::CP_UTF8;
 
 // # Terminal handling
 use std::io::Write;
-use crossterm::{cursor, execute, style::Stylize, terminal};
+use crossterm::{cursor, execute, queue, style::Stylize, terminal};
 use windows_capture::settings::ColorFormat;
 
 // # FrameData
 use crate::frame::{FrameData, Size};
 use crate::processing::{ImageProcess, Kernel, Scaling};
 
+#[derive(Clone)]
 pub struct Canvas {
     frame_data: FrameData,
+    term_size: Arc<Mutex<Size>>,
 }
 
 impl Canvas {
@@ -31,10 +35,31 @@ impl Canvas {
         };
         let mut frame_data = FrameData::default();
         frame_data.set_multiplier(multiplier);
-        terminal::enable_raw_mode().unwrap();
+        terminal::disable_raw_mode().unwrap();
+        let ts = crossterm::terminal::size().unwrap();
+        let (cols, rows) = (ts.0 as u32, ts.1 as u32);
         
+        let term_size = Arc::new(Mutex::new(Size { width: cols, height: rows }));
+        let term_size_clone = Arc::clone(&term_size);
+
+        thread::spawn(move || {
+            loop {
+                if poll(Duration::from_millis(500)).unwrap() {
+                    match read().unwrap() {
+                        Event::Resize(width, height) => {
+                            let mut term_size = term_size_clone.lock().unwrap();
+                            term_size.width = width as u32;
+                            term_size.height = height as u32;
+                        },
+                        _ => {}
+                    }
+                }
+            }
+        });
+
         Self {
             frame_data,
+            term_size,
         }
     }
 
@@ -46,36 +71,38 @@ impl Canvas {
         self.frame_data.set_raw_data(buffer, Size {width: buffer_width, height: buffer_height});
     }
 
+    pub fn get_colored_output(character: char, color: Color) -> String {
+        let (r, g, b) = match color {
+            Color::Rgb{r, g, b} => (r, g, b),
+            _ => (0, 0, 0),
+        };
+        format!("{}[38;2;{};{};{}m{}", 27 as char, r, g, b, character)
+    }
+
     pub unsafe fn render(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // Windows terminal stuff
         SetConsoleOutputCP(CP_UTF8);
         let h = winapi::um::winbase::STD_OUTPUT_HANDLE;
         let console_handle = kernel32::GetStdHandle(h);
         let mut stdout = File::from_raw_handle(console_handle as *mut _);
-        let mut screen_buffer_info = winapi::um::wincon::CONSOLE_SCREEN_BUFFER_INFO {
-            dwSize: COORD { X: 1 as i16, Y: 2 as i16 },
-            dwCursorPosition: COORD { X: 0, Y: 0 },
-            wAttributes: 0,
-            srWindow: winapi::um::wincon::SMALL_RECT { Left: 0, Top: 0, Right: 1 as i16, Bottom: 2 as i16 },
-            dwMaximumWindowSize: COORD { X: 1 as i16, Y: 2 as i16 },
-        };
-        unsafe{GetConsoleScreenBufferInfo(console_handle as HANDLE, &mut screen_buffer_info)};
-        let cols = screen_buffer_info.srWindow.Right - screen_buffer_info.srWindow.Left + 1;
-        let rows = screen_buffer_info.srWindow.Bottom - screen_buffer_info.srWindow.Top + 1;
+        let term_size = self.term_size.lock().unwrap();
         // End of Windows terminal stuff
         let buffer_size: Size = self.frame_data.get_buffer_size();
         let pixel_data = self.frame_data.get_image_mut()
-            .scale(Size {width: cols as u32, height: rows as u32}, Scaling::Bilinear, buffer_size);
+            .scale(*term_size, Scaling::Bilinear, buffer_size)
             //.seam_carve(false, false)
-            //.get_pixel_data();
-        let mut sobel_image = pixel_data.clone();
-        sobel_image.gradient_magnitude(Kernel::Sobel)
-        .mask_ontop(pixel_data, Color::Rgb{r: 0, g: 0, b: 0}, 50)
-        .get_pixel_data();
-        
-        let pixel_data = sobel_image.get_pixel_data();
-        let mut colored_string = String::with_capacity(pixel_data.len());
+            .get_pixel_data();
+        //let mut sobel_image = pixel_data.clone();
+        //sobel_image
+        //.grayscale(3)
+        //.gradient_magnitude(Kernel::Prewitt);
+        //.mask_ontop(pixel_data.grayscale(10 as u8).brightness(-50), Color::Rgb{r: 0, g: 0, b: 0}, 130);
+        //.get_pixel_data();
 
+        //let ascii_data = sobel_image.get_ascii("  `.-':_,^=;><+!rc*/z?sLTv)J7(|Fi{C}fI31tlu[neoZ5Yxjya]2ESwqkP6h9d4VpOGbUAKXHm8RD#$Bg0MNWQ%&@".to_string());
+        
+        //let pixel_data = sobel_image.get_pixel_data();
+        let mut colored_string = String::with_capacity(pixel_data.len());
 
         //execute!(stdout, Clear(ClearType::All), cursor::MoveTo(0, 0))?;
         for (index, pixel) in pixel_data.iter().enumerate() {
@@ -96,34 +123,36 @@ impl Canvas {
 
                 continue;
             }
-            //execute!(stdout, 
-            //    cursor::MoveTo(x as u16, y as u16),
-            //    SetForegroundColor(pixel),
-            //    style::Print("█")
-            //)?;
-            
-            
-            //if index % width == 0 {
-            //    //execute!(stdout, cursor::MoveToNextLine(1)).unwrap();
-            //    stdout.flush()?;
-            //}
-
-            colored_string.push_str(&format!("{}", "█".stylize().with(pixel.get_color())));
-
 
             //colored_string.push_str(&format!("{}", "█".stylize().with(pixel.get_color())));
+
+            colored_string.push_str(&Self::get_colored_output(pixel.get_character(), pixel.get_color()));
             // Write to stdout
             //stdout.write_all(&format!("{}", "█".stylize().with(pixel)).as_bytes())?;
         }
-
+        let start = Instant::now();
         execute!(stdout, 
             cursor::MoveTo(0, 0),
-            crossterm::style::Print(colored_string),
-            cursor::MoveTo(0, 0),
+            style::Print(colored_string),
+            //cursor::MoveTo(0, 0),
         )?;
+
+        //write!(stdout, "{}", "\x1B[H")?;
+        //write!(stdout, "{}", colored_string)?;
+        
+        let duration = start.elapsed();
+        println!("Render processing time: {:?}", duration);
         stdout.flush()?;
+
         mem::forget(stdout);
+
         Ok(())
         //print!("{esc}c", esc = 27 as char); // Clears terminal
     }
 }
+
+
+//Render processing time: 459.2432ms-925.8014ms Max windows terminal
+//Render processing time: 9.417ms Max windows terminal no color
+//Render processing time: 517.901ms
+
