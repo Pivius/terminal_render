@@ -260,9 +260,12 @@ impl ImageProcess for Image {
                         let q12 = self.get_pixel_data()[index12];
                         let q22 = self.get_pixel_data()[index22];
 
-                        let r = bilinear_interpolate!(src_x, src_y, x1, y1, x2, y2, q11.get_r(), q21.get_r(), q12.get_r(), q22.get_r());
-                        let g = bilinear_interpolate!(src_x, src_y, x1, y1, x2, y2, q11.get_g(), q21.get_g(), q12.get_g(), q22.get_g());
-                        let b = bilinear_interpolate!(src_x, src_y, x1, y1, x2, y2, q11.get_b(), q21.get_b(), q12.get_b(), q22.get_b());
+                        let r = bilinear_interpolate!(
+                            src_x, src_y, x1, y1, x2, y2, q11.get_r(), q21.get_r(), q12.get_r(), q22.get_r());
+                        let g = bilinear_interpolate!(
+                            src_x, src_y, x1, y1, x2, y2, q11.get_g(), q21.get_g(), q12.get_g(), q22.get_g());
+                        let b = bilinear_interpolate!(
+                            src_x, src_y, x1, y1, x2, y2, q11.get_b(), q21.get_b(), q12.get_b(), q22.get_b());
 
                         let new_pixel = pixel!(r, g, b, x, y);
                         resized_pixel_data.push(new_pixel);

@@ -121,7 +121,12 @@ impl Energy {
                 let x_index = x as i32 + i - 1;
                 let y_index = y as i32 + j - 1;
 
-                if x_index < 0 || x_index >= self.pixels[0].len() as i32 || y_index < 0 || y_index >= self.pixels.len() as i32{
+                if 
+                    x_index < 0 || 
+                    x_index >= self.pixels[0].len() as i32 || 
+                    y_index < 0 || 
+                    y_index >= self.pixels.len() as i32
+                {
                     continue;
                 }
 
